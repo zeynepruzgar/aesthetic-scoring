@@ -10,8 +10,7 @@ Both backbones are used purely as feature extractors and are never fine-tuned.
 CLIP was pretrained on 400M image-text pairs and ResNet-50 on ImageNet, so their
 representations already encode a great deal about content, composition and
 style. Only a small regression head is trained, which makes each experiment take
-seconds rather than minutes and keeps the whole study runnable on a free Colab
-GPU.
+seconds rather than minutes and keeps the whole study runnable on a laptop.
 
 Features are extracted once and cached to `.npy`; every experiment afterwards
 operates on those arrays.
@@ -44,9 +43,18 @@ use only.
 ## Setup
 
 ```bash
-pip install -r requirements.txt
+python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
+git clone --depth 1 https://github.com/aimerykong/deepImageAestheticsAnalysis.git
 unzip datasetImages_warp256.zip -d data/
 ```
+
+Python 3.12 rather than whatever `python3` points at: PyTorch wheels lag the
+newest interpreter release by several months.
+
+No GPU is required. Extraction picks the best available device -- CUDA, then
+Apple MPS, then CPU -- and the regression head trains on cached features in
+seconds on any machine. Extraction takes about two minutes per backbone on
+Apple silicon and closer to twenty on CPU.
 
 ## Usage
 
