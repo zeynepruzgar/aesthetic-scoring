@@ -102,14 +102,41 @@ two and reads lower on the same predictions.
 
 ## Results
 
-| Features | Loss | SRCC | KRCC | MSE |
-|---|---|---|---|---|
-| CLIP ViT-B/32 | MSE | 0.7671 | 0.5888 | 0.0170 |
+Single seed (0), test set evaluated once per configuration.
+
+| Features | Loss | SRCC | KRCC | MSE | Best epoch |
+|---|---|---|---|---|---|
+| CLIP ViT-B/32 | mse | **0.7717** | 0.5937 | 0.0166 | 9 |
+| CLIP ViT-B/32 | mse+rank | 0.7607 | 0.5822 | 0.0217 | 5 |
+| CLIP + ResNet-50 | mse+rank | 0.7588 | 0.5789 | 0.0219 | 1 |
+| CLIP + ResNet-50 | mse | 0.7547 | 0.5746 | 0.0184 | 1 |
+| ResNet-50 | mse | 0.6091 | 0.4445 | 0.0264 | 3 |
 
 For reference, the original AADB paper reports SRCC 0.678 on this test set. The
 comparison is not architecture against architecture: CLIP brings large-scale
 pretraining that was not available in 2016, and the gap should be read as what
 that pretraining buys rather than as a better head design.
+
+Two of the three hypotheses this study set up did not survive contact with the
+data, which is worth stating plainly rather than burying.
+
+**Fusion does not help.** Adding ResNet-50 to CLIP costs about 1.7 SRCC. ResNet-50
+alone reaches 0.609, so its features are not uninformative -- they appear to be
+largely redundant with what CLIP already encodes, and the extra parameters buy
+overfitting instead of signal. The fused models peak at epoch 1 and decline
+from there, against epoch 9 for CLIP alone: the wider input lets the head fit
+the training split before it has learned anything that generalises.
+
+**The ranking loss does not help either.** It costs about 1.1 SRCC on CLIP and
+roughly doubles MSE, which is the expected trade -- the pairwise term is
+indifferent to absolute calibration. The premise was that optimising MSE while
+measuring rank correlation leaves ordering on the table. At this scale it
+evidently does not: a 512-dimensional CLIP embedding is linearly separable
+enough that MSE already recovers most of the available ordering.
+
+These are single-seed differences of one to two points. The seed sweep in
+`notebooks/experiments.ipynb` is what decides whether they are real; treat them
+as directional until it has been run.
 
 ## Reference
 
