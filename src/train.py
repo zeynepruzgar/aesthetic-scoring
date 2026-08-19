@@ -167,6 +167,16 @@ def train(train_views: list[torch.Tensor], y_train: torch.Tensor,
                 state={k: v.clone() for k, v in model.state_dict().items()},
             )
 
+    # NaN compares False against everything, so a run whose validation SRCC is
+    # never finite leaves best["state"] unset.  Without this it would surface as
+    # an opaque TypeError inside load_state_dict.
+    if best["state"] is None:
+        raise RuntimeError(
+            "no epoch produced a finite validation SRCC -- predictions were "
+            "probably constant or diverged; check the learning rate and that "
+            "the cached features are not all zeros"
+        )
+
     model.load_state_dict(best["state"])
     if verbose:
         print(f"[train] best epoch {best['epoch']}/{epochs} "
@@ -180,6 +190,10 @@ def run_experiment(feature_names: list[str], feature_dir: str,
                    val_fraction: float = 0.1, seed: int = 0,
                    device: str | None = None, **train_kwargs) -> dict:
     """End-to-end: load cached features, fit, evaluate once on test."""
+    # Deliberately not pick_device(): the head is small enough that on Apple
+    # MPS the per-batch host-device transfers cost more than the compute they
+    # save, and CPU is the faster choice.  Feature extraction is where the
+    # accelerator matters, and that step selects one on its own.
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
 
     tr_feats, tr_scores = load_features(feature_names, "train", feature_dir)

@@ -16,7 +16,7 @@ Two failure modes are worth naming because neither raises an error:
     QuickGELU activation.  Recent open_clip versions default the plain
     'ViT-B-32' name to standard GELU, which runs those weights under an
     activation they never saw.  It emits a UserWarning and degrades results, so
-    the architecture name here is explicit.
+    every OpenAI-pretrained variant here names the QuickGELU architecture.
 """
 
 from __future__ import annotations
@@ -29,6 +29,22 @@ import torch.nn as nn
 
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
+
+
+def pick_device() -> str:
+    """Best available accelerator: CUDA, then Apple MPS, then CPU.
+
+    Checking only for CUDA silently drops an Apple-silicon machine to CPU, which
+    turns a two-minute extraction into a twenty-minute one.  MPS is worth having
+    here because extraction is dominated by large batched matrix multiplies; it
+    is deliberately *not* used for the regression head, where the tensors are
+    small enough that host-device transfer costs more than the compute saved.
+    """
+    if torch.cuda.is_available():
+        return "cuda"
+    if torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
 
 
 @dataclass
@@ -85,7 +101,8 @@ def load_resnet50(device: str = "cuda") -> Backbone:
 
 BACKBONES = {
     "clip": load_clip,
-    "clip-large": lambda device="cuda": load_clip("ViT-L-14", "openai", device),
+    "clip-large": lambda device="cuda": load_clip("ViT-L-14-quickgelu",
+                                                 "openai", device),
     "resnet50": load_resnet50,
 }
 

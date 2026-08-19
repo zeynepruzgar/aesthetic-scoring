@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Cached backbone features and downloaded data -- regenerable, and large.
+features/
+data/
+deepImageAestheticsAnalysis/
+results.json
+
+.DS_Store
+.ipynb_checkpoints/

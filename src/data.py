@@ -37,9 +37,15 @@ def load_labels(mat_path: str) -> dict[str, tuple[list[str], np.ndarray]]:
     The .mat layout nests each filename inside a (1, 1) array, hence the [0].
     """
     mat = sio.loadmat(mat_path)
+    # ravel() rather than [0] on the score arrays: MATLAB writes them as a 2-D
+    # matrix and whether that is (1, N) or (N, 1) is not something to guess.
+    # Guessing wrong yields a length-1 array, and build_split's zip would then
+    # silently truncate the whole split to a single sample.
     return {
-        "train": ([x[0] for x in mat["trainNameList"][0]], mat["trainScore"][0]),
-        "test": ([x[0] for x in mat["testNameList"][0]], mat["testScore"][0]),
+        "train": ([x[0] for x in mat["trainNameList"][0]],
+                  mat["trainScore"].ravel()),
+        "test": ([x[0] for x in mat["testNameList"][0]],
+                 mat["testScore"].ravel()),
     }
 
 
@@ -51,6 +57,12 @@ def build_split(names: list[str], scores: np.ndarray, image_dir: str) -> Split:
     subsequent pairing by one -- an error that raises nothing and destroys
     training silently.
     """
+    if len(names) != len(scores):
+        raise ValueError(
+            f"{len(names)} filenames but {len(scores)} scores -- the label file "
+            f"was parsed into misaligned arrays"
+        )
+
     on_disk = set(os.listdir(image_dir))  # set -> O(1) membership tests
     paths, kept = [], []
     for name, score in zip(names, scores):

@@ -3,8 +3,8 @@
 Run once per backbone; every downstream experiment then operates on the cached
 arrays and takes seconds instead of minutes.
 
-    python -m src.extract_features --backbone clip     --images /content/aadb/datasetImages_warp256
-    python -m src.extract_features --backbone resnet50 --images /content/aadb/datasetImages_warp256
+    python -m src.extract_features --backbone clip     --images data/datasetImages_warp256
+    python -m src.extract_features --backbone resnet50 --images data/datasetImages_warp256
 
 Outputs, written to --out:
 
@@ -27,7 +27,7 @@ import torch
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 
-from .backbones import get_backbone
+from .backbones import get_backbone, pick_device
 from .data import describe, load_aadb
 
 
@@ -64,10 +64,12 @@ def extract(paths: list[str], backbone, device: str,
         shuffle=False,
     )
     chunks = []
+    done = 0
     for i, batch in enumerate(loader, 1):
         chunks.append(backbone.encode(batch.to(device)).float().cpu())
+        done += len(batch)   # not i * batch_size: the final batch is short
         if i % 20 == 0:
-            print(f"  {i * loader.batch_size:6d} / {len(paths)}", flush=True)
+            print(f"  {done:6d} / {len(paths)}", flush=True)
     return torch.cat(chunks).numpy().astype(np.float32)
 
 
@@ -80,11 +82,13 @@ def main() -> None:
     p.add_argument("--out", default="features", help="output directory")
     p.add_argument("--batch-size", type=int, default=64)
     p.add_argument("--num-workers", type=int, default=2)
+    p.add_argument("--device", default=None,
+                   help="cuda | mps | cpu (default: best available)")
     p.add_argument("--overwrite", action="store_true",
                    help="re-extract even if cached files exist")
     args = p.parse_args()
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = args.device or pick_device()
     os.makedirs(args.out, exist_ok=True)
 
     targets = {s: os.path.join(args.out, f"{args.backbone}_{s}.npy")
