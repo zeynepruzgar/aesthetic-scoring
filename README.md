@@ -21,11 +21,10 @@ AADB (Aesthetics and Attributes Database), Kong et al., ECCV 2016. 10,000 Flickr
 photographs rated by multiple annotators, official split 8,458 train / 1,000
 test, continuous scores in [0, 1].
 
-Labels ship inside the authors' repository:
-
-```bash
-git clone --depth 1 https://github.com/aimerykong/deepImageAestheticsAnalysis.git
-```
+Labels live in a single 175 KB MATLAB file, `AADBinfo.mat`, inside the authors'
+repository; Setup below fetches just that file. Cloning the repository instead
+would drag in 16 MB of Caffe and MATLAB demo code from 2016 that nothing here
+uses.
 
 Images must be downloaded manually from the authors'
 [Google Drive folder](https://drive.google.com/drive/folders/0BxeylfSgpk1MOVduWGxyVlJFUHM?resourcekey=0-qecf-sZVexPbF6XLU4Gq_g)
@@ -44,9 +43,14 @@ use only.
 
 ```bash
 python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
-git clone --depth 1 https://github.com/aimerykong/deepImageAestheticsAnalysis.git
+mkdir -p data
+curl -sLo data/AADBinfo.mat \
+  https://raw.githubusercontent.com/aimerykong/deepImageAestheticsAnalysis/master/AADBinfo.mat
 unzip datasetImages_warp256.zip -d data/
 ```
+
+`data/` then holds `AADBinfo.mat` and `datasetImages_warp256/`, and is the only
+directory the code reads from.
 
 Python 3.12 rather than whatever `python3` points at: PyTorch wheels lag the
 newest interpreter release by several months.
@@ -102,41 +106,45 @@ two and reads lower on the same predictions.
 
 ## Results
 
-Single seed (0), test set evaluated once per configuration.
+Ten seeds per configuration. A seed fixes the train/validation split, so every
+configuration sees the same ten splits and the columns can be compared row
+against row. Reporting a single seed here would be misleading: the spread
+across seeds is about half a point of SRCC, which is the same size as the
+differences being argued about.
 
-| Features | Loss | SRCC | KRCC | MSE | Best epoch |
-|---|---|---|---|---|---|
-| CLIP ViT-B/32 | mse | **0.7717** | 0.5937 | 0.0166 | 9 |
-| CLIP ViT-B/32 | mse+rank | 0.7607 | 0.5822 | 0.0217 | 5 |
-| CLIP + ResNet-50 | mse+rank | 0.7588 | 0.5789 | 0.0219 | 1 |
-| CLIP + ResNet-50 | mse | 0.7547 | 0.5746 | 0.0184 | 1 |
-| ResNet-50 | mse | 0.6091 | 0.4445 | 0.0264 | 3 |
+| Features | Loss | SRCC (mean ± sd) | vs CLIP | p |
+|---|---|---|---|---|
+| CLIP ViT-B/32 | mse | **0.7645 ± 0.0034** | — | — |
+| CLIP ViT-B/32 | mse+rank | 0.7613 ± 0.0063 | −0.0033 | 0.17 |
+| CLIP + ResNet-50 | mse | 0.7575 ± 0.0057 | −0.0070 | 0.008 |
+| CLIP + ResNet-50 | mse+rank | 0.7516 ± 0.0051 | −0.0130 | <0.001 |
+| ResNet-50 | mse | 0.6139 ± 0.0080 | −0.1507 | <0.001 |
+
+`p` is a paired t-test over the ten shared seeds; a Wilcoxon signed-rank test
+agrees on every row.
 
 For reference, the original AADB paper reports SRCC 0.678 on this test set. The
 comparison is not architecture against architecture: CLIP brings large-scale
 pretraining that was not available in 2016, and the gap should be read as what
 that pretraining buys rather than as a better head design.
 
-Two of the three hypotheses this study set up did not survive contact with the
-data, which is worth stating plainly rather than burying.
+**Fusion hurts, slightly but consistently.** Adding ResNet-50 costs 0.7 SRCC,
+and CLIP wins on 8 of the 10 shared seeds. ResNet-50 alone reaches 0.614, so its
+features are not uninformative -- they are largely redundant with what CLIP
+already encodes, and the extra width buys overfitting instead of signal. The
+symptom is visible in the training curves: fused models peak within the first
+two epochs and decline from there, against roughly epoch 10 for CLIP alone.
 
-**Fusion does not help.** Adding ResNet-50 to CLIP costs about 1.7 SRCC. ResNet-50
-alone reaches 0.609, so its features are not uninformative -- they appear to be
-largely redundant with what CLIP already encodes, and the extra parameters buy
-overfitting instead of signal. The fused models peak at epoch 1 and decline
-from there, against epoch 9 for CLIP alone: the wider input lets the head fit
-the training split before it has learned anything that generalises.
+**The ranking loss does nothing measurable.** The 0.3-point deficit does not
+separate from seed noise (p = 0.17, CLIP ahead on 6 of 10 seeds). The premise
+was that optimising MSE while measuring rank correlation leaves ordering on the
+table; at this scale it evidently does not, and a 512-dimensional CLIP embedding
+is separable enough that MSE already recovers most of the available ordering.
+The two effects do stack -- fusion plus ranking loss is the worst of the four
+CLIP configurations, and that gap is unambiguous.
 
-**The ranking loss does not help either.** It costs about 1.1 SRCC on CLIP and
-roughly doubles MSE, which is the expected trade -- the pairwise term is
-indifferent to absolute calibration. The premise was that optimising MSE while
-measuring rank correlation leaves ordering on the table. At this scale it
-evidently does not: a 512-dimensional CLIP embedding is linearly separable
-enough that MSE already recovers most of the available ordering.
-
-These are single-seed differences of one to two points. The seed sweep in
-`notebooks/experiments.ipynb` is what decides whether they are real; treat them
-as directional until it has been run.
+The honest summary is that the simplest configuration wins and the two ideas
+this study set out to test were not worth their complexity.
 
 ## Reference
 

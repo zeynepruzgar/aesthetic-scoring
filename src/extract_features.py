@@ -78,7 +78,7 @@ def main() -> None:
     p.add_argument("--backbone", default="clip",
                    help="clip | clip-large | resnet50")
     p.add_argument("--images", required=True, help="directory of AADB images")
-    p.add_argument("--labels", default="deepImageAestheticsAnalysis/AADBinfo.mat")
+    p.add_argument("--labels", default="data/AADBinfo.mat")
     p.add_argument("--out", default="features", help="output directory")
     p.add_argument("--batch-size", type=int, default=64)
     p.add_argument("--num-workers", type=int, default=2)

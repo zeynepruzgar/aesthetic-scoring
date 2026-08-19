@@ -1,8 +1,10 @@
 """Loading AADB labels and pairing them with image files on disk.
 
 The AADB train/test split and ground-truth scores ship inside the authors'
-GitHub repository as a MATLAB file (AADBinfo.mat, ~180 KB).  The image archive
-is distributed separately via Google Drive.
+GitHub repository as a MATLAB file (AADBinfo.mat, 175 KB).  Only that one file
+is needed, so it is fetched directly rather than by cloning the repository,
+which also carries 16 MB of Caffe and MATLAB demo code from 2016.  The image
+archive is distributed separately via Google Drive.
 
 Kong et al., "Photo Aesthetics Ranking Network with Attributes and Content
 Adaptation", ECCV 2016.
@@ -16,8 +18,8 @@ from dataclasses import dataclass
 import numpy as np
 import scipy.io as sio
 
-LABEL_REPO = "https://github.com/aimerykong/deepImageAestheticsAnalysis.git"
-LABEL_FILE = "AADBinfo.mat"
+LABEL_URL = ("https://raw.githubusercontent.com/aimerykong/"
+             "deepImageAestheticsAnalysis/master/AADBinfo.mat")
 
 
 @dataclass
