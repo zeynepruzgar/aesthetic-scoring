@@ -188,8 +188,12 @@ def train(train_views: list[torch.Tensor], y_train: torch.Tensor,
 
 def run_experiment(feature_names: list[str], feature_dir: str,
                    val_fraction: float = 0.1, seed: int = 0,
-                   device: str | None = None, **train_kwargs) -> dict:
-    """End-to-end: load cached features, fit, evaluate once on test."""
+                   device: str | None = None, save: str | None = None,
+                   **train_kwargs) -> dict:
+    """End-to-end: load cached features, fit, evaluate once on test.
+
+    `save` writes a checkpoint that src.score can load to rate new images.
+    """
     # Deliberately not pick_device(): the head is small enough that on Apple
     # MPS the per-batch host-device transfers cost more than the compute they
     # save, and CPU is the faster choice.  Feature extraction is where the
@@ -213,8 +217,24 @@ def run_experiment(feature_names: list[str], feature_dir: str,
     model, info = train(Xtr, ytr, Xval, yval, seed=seed, device=device,
                         **train_kwargs)
 
-    test_metrics = compute_metrics(predict(model, Xte, device), yte.numpy())
+    test_pred = predict(model, Xte, device)
+    test_metrics = compute_metrics(test_pred, yte.numpy())
     print(f"[test ] {format_metrics(test_metrics)}")
+
+    if save:
+        # The test predictions travel with the weights so that a score for a new
+        # image can be placed against a known distribution.  A raw 0.58 means
+        # little on its own -- what a viewer wants to know is where it lands
+        # relative to other photographs, and that needs a reference sample.
+        torch.save({
+            "state_dict": model.state_dict(),
+            "features": feature_names,
+            "dims": [int(v.shape[1]) for v in Xtr],
+            "model_kwargs": {k: v for k, v in train_kwargs.items()
+                             if k in ("hidden", "dropout")},
+            "reference": torch.tensor(test_pred, dtype=torch.float32),
+        }, save)
+        print(f"[train] saved model to {save}")
 
     return {"features": feature_names,
             "dims": [v.shape[1] for v in Xtr],
@@ -237,6 +257,8 @@ def main() -> None:
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--results", default=None,
                    help="append the result row to this JSON file")
+    p.add_argument("--save", default=None,
+                   help="write the trained head here for use with src.score")
     args = p.parse_args()
 
     result = run_experiment(
@@ -244,6 +266,7 @@ def main() -> None:
         seed=args.seed, epochs=args.epochs, batch_size=args.batch_size,
         loss_name=args.loss, rank_weight=args.rank_weight,
         hidden=args.hidden, dropout=args.dropout, lr=args.lr,
+        save=args.save,
     )
     result["loss"] = args.loss
     result["seed"] = args.seed

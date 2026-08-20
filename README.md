@@ -82,6 +82,30 @@ python -m src.train --features clip resnet50 --loss mse+rank --results results.j
 `notebooks/experiments.ipynb` runs the same experiments interactively and builds
 the ablation table.
 
+### Scoring new photographs
+
+Training with `--save` keeps the head, which `src.score` then applies to any
+image -- a file, several files, or a directory to rank:
+
+```bash
+python -m src.train --features clip --save model.pt
+python -m src.score --model model.pt --images photo.jpg
+python -m src.score --model model.pt --images ~/Pictures/album --top 10
+```
+
+```
+sunset.jpg     0.867  top   1.4%  ####################
+portrait.jpg   0.612  top  32.8%  #############
+snapshot.jpg   0.247  top  97.8%
+```
+
+The raw score is on AADB's 0-1 scale. It is hard to read alone, because the
+label distribution is peaked and most photographs land between 0.4 and 0.7, so
+each image is also placed against the model's predictions on the held-out test
+set. Those predictions are stored in the checkpoint for exactly this purpose:
+the useful question is not whether an image is a 0.58 but whether it beats most
+photographs.
+
 ## Method notes
 
 **Validation protocol.** 10% of the training split is held out for validation.
